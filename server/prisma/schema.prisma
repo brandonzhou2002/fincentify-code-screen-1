@@ -1,0 +1,401 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("db__uri")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// CustomerAccount enums
+enum CustomerAccountType {
+  SUBSCRIPTION
+}
+
+enum BillingAccountStatus {
+  OPEN
+  CLOSED
+}
+
+enum BillingAccountRating {
+  NA
+  NEW
+  OK
+  MISSED
+  D30
+  D60
+  D90
+  D120
+  D150
+  D180
+  WRITTEN_OFF
+  PAID_PREV_WRITE_OFF
+}
+
+// Subscription enums
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAYMENT_FAILED
+  OVERDUE
+  SCHEDULED_CANCELLATION
+  CANCELLED
+  DEACTIVATED
+  WRITTEN_OFF
+  AWAITING_PAYMENT_CONFIRMATION
+}
+
+enum SubscriptionType {
+  MEMBERSHIP
+}
+
+enum SubscriptionProcessingStatus {
+  NONE
+  PROCESSING
+}
+
+enum SubscriptionCancellationReason {
+  TECHNICAL_ISSUE
+  MEMBERSHIP_TOO_EXPENSIVE
+  NOT_USING_SERVICE
+  FOUND_BETTER_ALTERNATIVE
+  OTHER
+}
+
+enum SubscriptionCancellationRequestStatus {
+  CONTACT_SUPPORT
+  NEED_REASON
+  INITIAL
+  SUCCESS
+  FAILED
+}
+
+// BillingCycle enums
+enum BillingCycleStatus {
+  NEW
+  UNPAID
+  REFUNDED
+  TRIAL
+  PAID
+  FREE_CREDIT
+  CANCELLED
+  WRITTEN_OFF
+}
+
+// Payment enums
+enum PaymentStatus {
+  SCHEDULED
+  PENDING
+  SENT
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  BATCH_PROCESSING
+  BATCH_FILE_ADDED
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  SUBSCRIPTION_RETRY
+  SUBSCRIPTION_RETRY_LATER
+  SUBSCRIPTION_MANUAL
+  SUBSCRIPTION_ADMIN
+  SUBSCRIPTION_FUNDING_SETTLEMENT
+  OTHER
+}
+
+enum PaymentTrack {
+  BANK_CARD
+  ANY_CARD
+}
+
+enum PaymentDirectionType {
+  ACCOUNT_PAYABLE
+  ACCOUNT_RECEIVABLE
+}
+
+enum PaymentAsyncProcessingStatus {
+  READY
+  IN_PROGRESS
+  ADDED_TO_FILE
+  SENT_TO_PROCESSOR
+}
+
+// PaymentMethod enums
+enum PaymentMethodType {
+  CARD
+}
+
+enum PaymentMethodStatus {
+  PROCESSING
+  VALID
+  INVALID
+  DELETED
+  EXPIRED
+  BLOCKED
+  ADD_FAILED
+}
+
+enum CardNetwork {
+  VISA
+  MASTERCARD
+  AMERICAN_EXPRESS
+  DISCOVER
+  UNIONPAY
+  JCB
+}
+
+enum CardFundingType {
+  CREDIT
+  DEBIT
+  PREPAID
+}
+
+// PaymentProvider enum - Generic provider names for scaffolding
+enum PaymentProvider {
+  PROVIDER_1
+  PROVIDER_2
+  PROVIDER_3
+  PROVIDER_4
+}
+
+model User {
+  id         String     @id @default(uuid())
+  email      String     @unique
+  password   String
+  first_name String?
+  last_name  String?
+  status     UserStatus @default(ACTIVE)
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+
+  customer_accounts CustomerAccount[]
+  payment_methods   PaymentMethod[]
+  provider_accounts CustomerProviderAccount[]
+  subscriptions     Subscription[]
+
+  @@index([email])
+}
+
+model CustomerAccount {
+  id                             String               @id @default(uuid())
+  customer_id                    String?
+  type                           CustomerAccountType
+  status                         BillingAccountStatus @default(OPEN)
+  rating                         BillingAccountRating @default(NA)
+  balance                        Int                  @default(0)
+  balance_due_date               DateTime?
+  balance_past_due               Int?                 @default(0)
+  first_delinquent_date          DateTime?
+  last_successful_payment_amount Int?
+  last_successful_payment_date   DateTime?
+  last_failed_payment_amount     Int?
+  last_failed_payment_date       DateTime?
+  authorization_rate             Float?
+  nsf_count                      Int?
+  card_block_count               Int?
+  payment_history                String[]             @default([])
+  last_payment_history_update    DateTime?
+  last_marking_date              DateTime?
+  metadata                       Json?
+  opened_on                      DateTime?
+  closed_on                      DateTime?
+  created_at                     DateTime             @default(now())
+  updated_at                     DateTime             @updatedAt
+
+  customer     User?         @relation(fields: [customer_id], references: [id])
+  payments     Payment[]
+  subscription Subscription?
+
+  @@index([customer_id])
+}
+
+model Subscription {
+  id                       String                       @id @default(uuid())
+  customer_id              String                       @unique
+  account_id               String                       @unique
+  type                     SubscriptionType             @default(MEMBERSHIP)
+  status                   SubscriptionStatus?          @default(TRIAL)
+  processing_status        SubscriptionProcessingStatus @default(NONE)
+  start_date               DateTime                     @default(now())
+  inactive_after           DateTime?
+  current_billing_cycle_id String?                      @unique
+  amount                   Int
+  payment_failure_cnt      Int                          @default(0)
+  last_marking_start       DateTime?
+  last_marking_end         DateTime?
+  created_at               DateTime                     @default(now())
+  updated_at               DateTime                     @updatedAt
+
+  customer              User                              @relation(fields: [customer_id], references: [id])
+  account               CustomerAccount                   @relation(fields: [account_id], references: [id])
+  current_billing_cycle BillingCycle?                     @relation("SubscriptionCurrentBillingCycle", fields: [current_billing_cycle_id], references: [id])
+  billing_cycles        BillingCycle[]
+  payments              Payment[]
+  cancellation_requests SubscriptionCancellationRequest[]
+
+  @@index([customer_id])
+  @@index([account_id])
+}
+
+model BillingCycle {
+  id              String              @id @default(uuid())
+  start_date      DateTime
+  end_date        DateTime
+  status          BillingCycleStatus? @default(NEW)
+  subscription_id String?
+  days_overdue    Int?                @default(0)
+  payment_date    DateTime?
+  payment_amount  Int?
+  memo            String?
+  deleted         Boolean             @default(false)
+  deleted_at      DateTime?
+  created_at      DateTime            @default(now())
+  updated_at      DateTime            @updatedAt
+
+  subscription            Subscription? @relation(fields: [subscription_id], references: [id])
+  current_bc_subscription Subscription? @relation("SubscriptionCurrentBillingCycle")
+  payments                Payment[]
+
+  @@index([subscription_id])
+}
+
+model SubscriptionCancellationRequest {
+  id              String                                @id @default(uuid())
+  customer_id     String
+  subscription_id String
+  reason          SubscriptionCancellationReason?
+  status          SubscriptionCancellationRequestStatus @default(INITIAL)
+  memo            String?
+  requested_at    DateTime?
+  processed_at    DateTime?
+  created_at      DateTime                              @default(now())
+  updated_at      DateTime                              @updatedAt
+
+  subscription Subscription @relation(fields: [subscription_id], references: [id])
+
+  @@index([subscription_id])
+}
+
+model PaymentMethod {
+  id               String              @id @default(uuid())
+  type             PaymentMethodType   @default(CARD)
+  status           PaymentMethodStatus @default(PROCESSING)
+  customer_id      String?
+  issuer           String?
+  iin              String?
+  last4            String?
+  exp_month        String?
+  exp_year         String?
+  card_network     CardNetwork?
+  card_brand       String?
+  card_pan         String?
+  card_cvv         String?
+  card_hash        String?
+  card_postal_code String?
+  account_nb       String?
+  routing_nb       String?
+  account_name     String?
+  account_type     String?
+  funding_type     CardFundingType?
+  default          Boolean             @default(false)
+  deleted          Boolean             @default(false)
+  deleted_at       DateTime?
+  deleted_by       String?
+  memo             String?
+  data             Json?
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+
+  customer   User?                    @relation(fields: [customer_id], references: [id])
+  processors PaymentMethodProcessor[]
+  payments   Payment[]
+
+  @@index([customer_id])
+}
+
+model PaymentMethodProcessor {
+  id                      String          @id @default(uuid())
+  processor_external_id   String?
+  provider_name           PaymentProvider
+  payment_method_id       String
+  provider_account_id     String?
+  is_recurring            Boolean?        @default(false)
+  processor_external_data Json?
+  created_at              DateTime        @default(now())
+  updated_at              DateTime        @updatedAt
+
+  payment_method   PaymentMethod            @relation(fields: [payment_method_id], references: [id])
+  provider_account CustomerProviderAccount? @relation(fields: [provider_account_id], references: [id])
+  payments         Payment[]
+
+  @@index([payment_method_id])
+}
+
+model CustomerProviderAccount {
+  id                  String          @id @default(uuid())
+  provider            PaymentProvider
+  provider_account_id String          @unique
+  customer_id         String
+  additional_data     Json?
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+
+  customer                  User                     @relation(fields: [customer_id], references: [id])
+  payment_method_processors PaymentMethodProcessor[]
+
+  @@index([customer_id])
+}
+
+model Payment {
+  id                              String                        @id @default(uuid())
+  status                          PaymentStatus                 @default(SCHEDULED)
+  code                            Int?
+  direction                       PaymentDirectionType?
+  track                           PaymentTrack?
+  type                            PaymentType                   @default(OTHER)
+  date                            DateTime
+  amount                          Int
+  transaction_id                  String?
+  account_id                      String
+  payment_method_id               String?
+  payment_method_processor_id     String?
+  subscription_id                 String?
+  billing_cycle_id                String?
+  retry_routing_ctx               String[]                      @default([])
+  retry_sequence_nb               Int                           @default(0)
+  retry_prev_payment_id           String?
+  retry_annotation                String?
+  retry_trace_data                Json?
+  retry_logic_version             Int?
+  memo                            String?
+  fail_reason                     String?
+  processing_split_key            Int?
+  async_processing_status         PaymentAsyncProcessingStatus?
+  async_processing_reference_id   String?
+  async_processing_input_file_id  String?
+  async_processing_output_file_id String?
+  gateway_context_data            Json?
+  created_at                      DateTime                      @default(now())
+  processed_at                    DateTime?
+  updated_at                      DateTime                      @updatedAt
+
+  account                  CustomerAccount         @relation(fields: [account_id], references: [id])
+  payment_method           PaymentMethod?          @relation(fields: [payment_method_id], references: [id])
+  payment_method_processor PaymentMethodProcessor? @relation(fields: [payment_method_processor_id], references: [id])
+  subscription             Subscription?           @relation(fields: [subscription_id], references: [id])
+  billing_cycle            BillingCycle?           @relation(fields: [billing_cycle_id], references: [id])
+
+  @@index([date, status])
+  @@index([account_id])
+  @@index([subscription_id])
+  @@index([billing_cycle_id])
+  @@index([async_processing_reference_id])
+}

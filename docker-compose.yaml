@@ -1,0 +1,73 @@
+services:
+  cs1-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    image: code-screen-server:dev
+    container_name: code_screen_1_server
+    environment:
+      db__uri: postgresql://postgres:postgres@cs1-db:5432/codescreen_1?connect_timeout=300
+      STAGE: dev
+    depends_on:
+      cs1-db:
+        condition: service_healthy
+    ports:
+      - "3200:3200"
+      - "3201:3101"
+    volumes:
+      - type: volume
+        source: cs1_server_node_modules
+        target: /app/node_modules
+      - type: bind
+        source: ./server
+        target: /app
+    healthcheck:
+      test: "curl http://localhost:3200/healthcheck"
+      interval: 1s
+      timeout: 1s
+      retries: 100
+
+  cs1-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    image: code-screen-web:dev
+    container_name: code_screen_1_web
+    depends_on:
+      cs1-server:
+        condition: service_healthy
+    ports:
+      - "8280:8180"
+    volumes:
+      - type: volume
+        source: cs1_web_node_modules
+        target: /app/node_modules
+      - type: bind
+        source: ./web
+        target: /app
+
+  cs1-db:
+    container_name: code_screen_1_db
+    image: postgres:14-alpine
+    ports:
+      - "5434:5432"
+    volumes:
+      - cs1_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: codescreen_1
+    healthcheck:
+      test: "pg_isready -h localhost -p 5432 -q -U postgres"
+      interval: 1s
+      timeout: 1s
+      retries: 100
+
+volumes:
+  cs1_db_data:
+  cs1_server_node_modules:
+  cs1_web_node_modules:
+
+networks:
+  default:
+    name: code_screen_1_dev_net

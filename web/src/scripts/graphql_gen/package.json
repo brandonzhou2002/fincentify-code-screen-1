@@ -1,0 +1,20 @@
+{
+  "name": "graphql_gen",
+  "version": "1.0.0",
+  "description": "Graphql Codegen",
+  "main": "main.ts",
+  "author": "Fincentify inc.",
+  "license": "LGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "gqlgen": "tsx ./main.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0"
+  },
+  "dependencies": {
+    "@types/node": "^22.0.0",
+    "isomorphic-fetch": "^3.0.0",
+    "typescript": "^5.1.3"
+  }
+}

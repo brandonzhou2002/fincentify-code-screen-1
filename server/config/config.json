@@ -1,0 +1,13 @@
+{
+  "service": "code-screen-server",
+  "_host": "*",
+  "_server_host": "http://localhost:3200",
+  "port": 3200,
+  "db": {
+    "uri": "postgresql://postgres:postgres@cs1-db:5434/codescreen_1"
+  },
+  "jwt": {
+    "secret": "your-super-secret-jwt-key-change-in-production",
+    "expiresIn": "7d"
+  }
+}
