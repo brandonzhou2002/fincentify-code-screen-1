@@ -45,7 +45,7 @@ generate_migration:
 
 # Run Prisma Studio
 studio:
-	cd server && db__uri=$(DEV_DB_URI) yarn prisma studio --port 3101 --browser none
+	cd server && db__uri=$(DEV_DB_URI) yarn prisma studio --port 3201 --browser none
 
 # Run server tests
 test-server:
