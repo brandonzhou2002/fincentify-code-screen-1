@@ -16,7 +16,7 @@
     "db:generate": "yarn prisma format && yarn prisma generate",
     "db:migrate": "yarn prisma migrate dev",
     "prisma:studio": "yarn prisma studio --port 3201 --browser none &",
-    "test:unit": "STAGE=test yarn ts-mocha --recursive --inline-diffs --color --timeout 20000 --paths --p ./tsconfig.json './src/test/unit/**/*.ts'",
+    "test:unit": "STAGE=test TS_NODE_PROJECT=./tsconfig.json yarn ts-mocha --recursive --inline-diffs --color --timeout 20000 --require tsconfig-paths/register './src/test/unit/**/*.ts'",
     "clean": "rm -rf ./build"
   },
   "author": "Fincentify inc.",
