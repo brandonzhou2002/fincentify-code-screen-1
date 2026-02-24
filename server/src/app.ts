@@ -47,7 +47,9 @@ export default async function init_app() {
     '/v1',
     graphqlHTTP(async (request: Request | any, response: Response) => ({
       schema: graphql_schema,
-      graphiql: true,
+      graphiql: {
+        headerEditorEnabled: true,
+      } as any,
       context: {
         auth_token: request.headers['auth-token'] || '',
         idempotency_key: request.headers['idempotency-key'] || '',
