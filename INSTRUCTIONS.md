@@ -98,7 +98,7 @@ After editing `server/prisma/schema.prisma`, generate a migration:
 
 4. Regenerate the Prisma client:
    ```bash
-   cd server && yarn db:gen
+   cd server && yarn db:generate
    ```
 
 ## Troubleshooting
