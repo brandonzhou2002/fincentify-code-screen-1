@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useApolloClient } from '@apollo/client';
 import styled from 'styled-components';
 import useGet_payment_methodsQuery from '../graphql/generated/queries/get_payment_methodsQuery';
+import sendRemove_cardMutation from '../graphql/generated/mutations/remove_cardMutation';
 import useAuthProcedures from '../auth/authProcedures';
 import { PaymentMethod, CardNetwork } from '../graphql/generated/serverModel';
 
@@ -240,6 +242,32 @@ const CardDetails = styled.div`
   align-items: flex-end;
 `;
 
+const CardActions = styled.div`
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+`;
+
+const RemoveButton = styled.button`
+  border: 1px solid #dc3545;
+  background-color: white;
+  color: #dc3545;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #fff5f5;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
 const CardInfo = styled.div`
   display: flex;
   flex-direction: column;
@@ -353,6 +381,16 @@ const ErrorMessage = styled.div`
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
 `;
 
+const ActionErrorMessage = styled.div`
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #9f1239;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+`;
+
 const FloatingAddButton = styled(Link)`
   position: fixed;
   bottom: 32px;
@@ -421,13 +459,42 @@ const format_issuer_name = (issuer?: string, card_brand?: string): string => {
 
 // Component
 const MyCardsPage: React.FC = () => {
+  const apolloClient = useApolloClient();
   const { log_out } = useAuthProcedures();
-  const { data, loading, error } = useGet_payment_methodsQuery();
+  const { data, loading, error, refetch } = useGet_payment_methodsQuery();
+  const [remove_error, setRemoveError] = React.useState<string | null>(null);
+  const [removing_card_id, setRemovingCardId] = React.useState<string | null>(null);
 
   const payment_methods = data?.get_payment_methods?.data?.items || [];
   const active_cards = payment_methods.filter(
     (pm: PaymentMethod) => !pm.deleted && pm.type === 'CARD'
   );
+
+  const handle_remove_card = async (card: PaymentMethod) => {
+    setRemoveError(null);
+
+    if (!window.confirm(`Remove card ending in ${card.last4 || '****'}?`)) {
+      return;
+    }
+
+    setRemovingCardId(card.id);
+    try {
+      const result = await sendRemove_cardMutation(apolloClient, {
+        payment_method_id: card.id,
+      });
+
+      if (!result.data.remove_card.success) {
+        setRemoveError(result.data.remove_card.error?.detail || 'Failed to remove card');
+        return;
+      }
+
+      await refetch();
+    } catch (e) {
+      setRemoveError('Failed to remove card');
+    } finally {
+      setRemovingCardId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -481,6 +548,7 @@ const MyCardsPage: React.FC = () => {
         <PageSubtitle>
           Manage your saved payment methods
         </PageSubtitle>
+        {remove_error && <ActionErrorMessage>{remove_error}</ActionErrorMessage>}
 
         {active_cards.length === 0 ? (
           <EmptyState>
@@ -522,6 +590,14 @@ const MyCardsPage: React.FC = () => {
                       )}
                     </CardIssuer>
                   </CardDetails>
+                  <CardActions>
+                    <RemoveButton
+                      onClick={() => handle_remove_card(card)}
+                      disabled={removing_card_id === card.id}
+                    >
+                      {removing_card_id === card.id ? 'Removing...' : 'Remove'}
+                    </RemoveButton>
+                  </CardActions>
                 </CardItem>
               ))}
             </CardsGrid>
