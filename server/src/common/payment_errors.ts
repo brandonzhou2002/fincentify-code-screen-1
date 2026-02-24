@@ -20,6 +20,7 @@ export class PaymentMethodNotFound extends UserError(4440, 'payment')<Error> {}
 export class PaymentMethodInvalid extends UserError(4441, 'payment')<Error> {}
 export class NoValidPaymentMethod extends UserError(4442, 'payment')<Error> {}
 export class NoEligibleProcessor extends UserError(4443, 'payment')<Error> {}
+export class RetryNotPossible extends UserError(4444, 'payment')<Error> {}
 
 // Payment processing errors
 export class PaymentProcessingError extends UserError(4500, 'payment')<Error> {}

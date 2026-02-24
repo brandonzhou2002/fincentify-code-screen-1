@@ -5,6 +5,7 @@ import Payment from 'model/Payment';
 import PaymentMethod from 'model/PaymentMethod';
 import CustomerAccount from 'model/CustomerAccount';
 import { init_logger } from 'util/logger';
+import apply_retry_policy_on_failed_payment from '../retry/apply_retry_policy_on_failed_payment';
 import { PaymentStatusCode, is_hard_decline_code } from '../PaymentStatusCode';
 
 const logger = init_logger('handle_failed_pull_funds');
@@ -116,10 +117,49 @@ export default async function handle_failed_pull_funds({
       );
     }
 
-    // TODO: Add subscription-specific failure handling
-    // if (payment.subscription_id) {
-    //   await handle_failed_subscription_payment({ payment, code, ref_date });
-    // }
+    // Apply retry/reschedule policy for failed payments.
+    const retry_result = await apply_retry_policy_on_failed_payment({
+      payment,
+      code,
+      ref_date,
+    });
+
+    if (!retry_result.ok) {
+      logger.warn(
+        {
+          payment_id: payment.id,
+          code,
+          retry_error: retry_result.error,
+        },
+        'Retry policy returned an error'
+      );
+      return Result.fail(retry_result.error);
+    }
+
+    // Log if alert/backoff path is triggered
+    if (retry_result.data.alert_required) {
+      logger.error(
+        {
+          payment_id: payment.id,
+          account_id: payment.account_id,
+          code,
+          action: retry_result.data.action,
+        },
+        'ALERT: Payment failed. Manual review required'
+      );
+    }
+
+    if (retry_result.data.scheduled_payment) {
+      logger.info(
+        {
+          payment_id: payment.id,
+          retry_payment_id: retry_result.data.scheduled_payment.id,
+          retry_payment_date: retry_result.data.scheduled_payment.date,
+          retry_action: retry_result.data.action,
+        },
+        'Retry payment scheduled'
+      );
+    }
 
     return Result.success(payment);
   } catch (e) {
